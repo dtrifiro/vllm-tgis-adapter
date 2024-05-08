@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import time
 import uuid
@@ -731,7 +732,7 @@ class TextGenerationService(generation_pb2_grpc.GenerationServiceServicer):
         )
 
 
-async def start_grpc_server(
+async def _start_grpc_server(
     engine: AsyncLLMEngine, args: argparse.Namespace
 ) -> aio.Server:
     # Log memory summary after model is loaded
@@ -799,3 +800,20 @@ async def start_grpc_server(
     logger.info("gRPC Server started at %s", listen_on)
 
     return server
+
+
+async def start_grpc_server(
+    engine: AsyncLLMEngine,
+    args: argparse.Namespace,
+    *,
+    disable_log_stats: bool,
+) -> aio.Server:
+    async def _force_log() -> None:
+        while True:
+            await asyncio.sleep(10)
+            await engine.do_log_stats()
+
+    if not disable_log_stats:
+        asyncio.create_task(_force_log())  # noqa: RUF006
+
+    return await _start_grpc_server(engine, args)
